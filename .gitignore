@@ -1,0 +1,32 @@
+# Environment variables & API keys
+.env
+.env.local
+*.env
+
+# SQLite Database files (prevents pushing local test logs and chunks)
+*.db
+*.sqlite
+*.sqlite3
+microrag.db
+
+# Python virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local data & uploaded test documents
+data/*
+!data/.gitkeep
+
+# IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
