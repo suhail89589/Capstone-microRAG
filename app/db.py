@@ -1,15 +1,27 @@
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "microrag.db"
+# Vercel serverless containers only allow writing inside the /tmp directory
+if os.environ.get("VERCEL"):
+    DB_PATH = Path("/tmp/microrag.db")
+else:
+    DB_PATH = Path(__file__).parent.parent / "microrag.db"
+
 
 def get_db_connection():
+    # Ensure directory exists if path is modified locally
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode = WAL;")
+    
+    # WAL mode requires write access to sidecar files (-wal, -shm).
+    # Only enable WAL outside of Vercel to avoid disk permission errors.
+    if not os.environ.get("VERCEL"):
+        conn.execute("PRAGMA journal_mode = WAL;")
+        
     return conn
-
-
 
 
 def init_db():
@@ -26,14 +38,19 @@ def init_db():
     );
     """)
 
-    cursor.execute("""
-    CREATE VIRTUAL TABLE IF NOT EXISTS fts_chunks USING fts5 ( 
-        content,
-        file_name UNINDEXED,
-        chunk_id UNINDEXED,
-        tokenize = 'porter unicode61' 
-    );
-    """)
+    # Vercel's AWS Lambda Python binaries often lack FTS5 support.
+    # Catching OperationalError prevents the entire app initialization from crashing.
+    try:
+        cursor.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS fts_chunks USING fts5 ( 
+            content,
+            file_name UNINDEXED,
+            chunk_id UNINDEXED,
+            tokenize = 'porter unicode61' 
+        );
+        """)
+    except sqlite3.OperationalError as e:
+        print(f"Warning: FTS5 virtual table initialization skipped: {e}")
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS query_logs (
@@ -46,7 +63,6 @@ def init_db():
     );
     """)
 
-   
     cursor.execute("PRAGMA table_info(query_logs);")
     columns = [column[1] for column in cursor.fetchall()]
     
